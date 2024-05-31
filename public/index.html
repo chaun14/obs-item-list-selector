@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OBS Extension</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #2e2e2e;
+            color: #f0f0f0;
+            margin: 0;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+        #list {
+            margin: 20px 0;
+            max-height: 200px;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+        .item {
+            margin: 5px 0;
+            padding: 10px;
+            border-radius: 5px;
+            background-color: #3e3e3e;
+            transition: background-color 0.3s ease;
+        }
+        .item.current {
+            font-weight: bold;
+            background-color: #5e5e5e;
+        }
+        button {
+            background-color: #5e5e5e;
+            color: #f0f0f0;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        button:hover {
+            background-color: #7e7e7e;
+        }
+        h1 {
+            font-size: 1.5em;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>OBS Extension</h1>
+    <div id="list"></div>
+    <button id="prevBtn">Previous</button>
+    <button id="nextBtn">Next</button>
+
+    <script>
+        const socket = io();
+
+        let currentIndex = 0;
+        let list = [];
+
+        // Handle initial data
+        socket.on('initialData', (data) => {
+            list = data.list;
+            currentIndex = data.index;
+            renderList();
+        });
+
+        // Handle current update
+        socket.on('updateCurrent', (index) => {
+            currentIndex = index;
+            renderList();
+        });
+
+        // Handle list update
+        socket.on('updateList', (updatedList) => {
+            list = updatedList;
+            renderList();
+        });
+
+        // Handle list changed
+        socket.on('listChanged', () => {
+            // Optionally, you could fetch the updated list from the server
+            // socket.emit('requestListUpdate');
+        });
+
+        // Render the list
+        function renderList() {
+            const listDiv = document.getElementById('list');
+            listDiv.innerHTML = '';
+
+            // Define the range to be displayed
+            const start = Math.max(0, currentIndex - 1);
+            const end = Math.min(list.length, currentIndex + 3);
+
+            for (let i = start; i < end; i++) {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'item' + (i === currentIndex ? ' current' : '');
+                itemDiv.textContent = list[i];
+                listDiv.appendChild(itemDiv);
+            }
+        }
+
+        // Button event listeners
+        document.getElementById('prevBtn').addEventListener('click', () => {
+            if (currentIndex > 0) {
+                currentIndex--;
+                socket.emit('selectList', currentIndex);
+            }
+        });
+
+        document.getElementById('nextBtn').addEventListener('click', () => {
+            if (currentIndex < list.length - 1) {
+                currentIndex++;
+                socket.emit('selectList', currentIndex);
+            }
+        });
+    </script>
+</body>
+</html>
