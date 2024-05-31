@@ -48,10 +48,24 @@
             font-size: 1.5em;
             margin-bottom: 20px;
         }
+        select {
+            background-color: #5e5e5e;
+            color: #f0f0f0;
+            border: none;
+            padding: 10px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        select:hover {
+            background-color: #7e7e7e;
+        }
     </style>
 </head>
 <body>
-    <h1>OBS Extension</h1>
+    <h1>Scene overlay</h1>
+    <select id="fileSelect"></select>
     <div id="list"></div>
     <button id="prevBtn">Previous</button>
     <button id="nextBtn">Next</button>
@@ -61,11 +75,16 @@
 
         let currentIndex = 0;
         let list = [];
+        let files = [];
+        let currentFile = '';
 
         // Handle initial data
         socket.on('initialData', (data) => {
             list = data.list;
             currentIndex = data.index;
+            files = data.files;
+            currentFile = data.currentFile;
+            renderFileSelect();
             renderList();
         });
 
@@ -81,11 +100,34 @@
             renderList();
         });
 
-        // Handle list changed
-        socket.on('listChanged', () => {
-            // Optionally, you could fetch the updated list from the server
-            // socket.emit('requestListUpdate');
+        // Handle file changed
+        socket.on('fileChanged', (data) => {
+            list = data.list;
+            currentFile = data.currentFile;
+            currentIndex = 0; // Reset the index when a new file is selected
+            renderList();
         });
+
+        // Render the file select dropdown
+        function renderFileSelect() {
+            const fileSelect = document.getElementById('fileSelect');
+            fileSelect.innerHTML = '';
+
+            files.forEach(file => {
+                const option = document.createElement('option');
+                option.value = file;
+                option.textContent = file;
+                if (file === currentFile) {
+                    option.selected = true;
+                }
+                fileSelect.appendChild(option);
+            });
+
+            fileSelect.addEventListener('change', (event) => {
+                const selectedFile = event.target.value;
+                socket.emit('selectFile', selectedFile);
+            });
+        }
 
         // Render the list
         function renderList() {

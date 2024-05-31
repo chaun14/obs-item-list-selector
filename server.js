@@ -11,17 +11,20 @@ const io = socketIo(server);
 
 const PORT = 3000;
 
+const DATA_DIR = path.join(__dirname, 'data');
+
 // Serve static files from the "public" directory
 app.use(express.static(path.join(__dirname, 'public')));
 
 let currentList = [];
 let currentIndex = 0;
+let currentFile = '';
 
-// Function to read the list from list.txt
-const readListFromFile = () => {
-    fs.readFile('list.txt', 'utf8', (err, data) => {
+// Function to read the list from the selected file
+const readListFromFile = (filePath) => {
+    fs.readFile(filePath, 'utf8', (err, data) => {
         if (err) {
-            console.error('Error reading list.txt:', err);
+            console.error(`Error reading ${filePath}:`, err);
             return;
         }
         currentList = data.split('\n').filter(line => line.trim() !== '');
@@ -32,9 +35,9 @@ const readListFromFile = () => {
     });
 };
 
-// Function to save the current index to config.json
-const saveCurrentIndexToFile = () => {
-    const config = { currentIndex };
+// Function to save the current index and file to config.json
+const saveConfigToFile = () => {
+    const config = { currentIndex, currentFile };
     fs.writeFile('config.json', JSON.stringify(config, null, 2), (err) => {
         if (err) {
             console.error('Error writing to config.json:', err);
@@ -57,42 +60,68 @@ const updateCurrentTxtIfNeeded = () => {
     }
 };
 
-// Initial read of the list
-readListFromFile();
+// Function to list available files in the data directory
+const listFiles = () => {
+    return fs.readdirSync(DATA_DIR).filter(file => path.extname(file) === '.txt');
+};
 
-// Watch for changes in list.txt
-const watcher = chokidar.watch('list.txt', { persistent: true });
-
-watcher.on('change', () => {
-    console.log('list.txt has been updated');
-    readListFromFile();
-    // Notify clients that the list has changed
-    io.emit('listChanged');
-});
-
-// Read current index from config.json on startup
-fs.readFile('config.json', 'utf8', (err, data) => {
-    if (!err) {
-        const config = JSON.parse(data);
-        if (config && typeof config.currentIndex === 'number') {
-            currentIndex = config.currentIndex;
+// Initial read of the config file
+if (fs.existsSync('config.json')) {
+    fs.readFile('config.json', 'utf8', (err, data) => {
+        if (!err) {
+            const config = JSON.parse(data);
+            if (config) {
+                currentIndex = config.currentIndex || 0;
+                currentFile = config.currentFile || listFiles()[0];
+                readListFromFile(path.join(DATA_DIR, currentFile));
+            }
         }
+    });
+} else {
+    currentFile = listFiles()[0]; // Default to the first file if no config
+    readListFromFile(path.join(DATA_DIR, currentFile));
+}
+
+// Watch for changes in the current file
+let watcher;
+const watchCurrentFile = () => {
+    if (watcher) {
+        watcher.close();
     }
-});
+    watcher = chokidar.watch(path.join(DATA_DIR, currentFile), { persistent: true });
+    watcher.on('change', () => {
+        console.log(`${currentFile} has been updated`);
+        readListFromFile(path.join(DATA_DIR, currentFile));
+        // Notify clients that the list has changed
+        io.emit('listChanged');
+    });
+};
+
+watchCurrentFile();
 
 // Socket.io connection
 io.on('connection', (socket) => {
     console.log('New client connected');
 
-    // Send the current list and index to the client
-    socket.emit('initialData', { list: currentList, index: currentIndex });
+    // Send the current list, index, and available files to the client
+    socket.emit('initialData', { list: currentList, index: currentIndex, files: listFiles(), currentFile });
 
     // Handle list selection
     socket.on('selectList', (index) => {
         currentIndex = index;
-        saveCurrentIndexToFile();
+        saveConfigToFile();
         updateCurrentTxtIfNeeded();
         io.emit('updateCurrent', currentIndex);
+    });
+
+    // Handle file selection
+    socket.on('selectFile', (fileName) => {
+        currentFile = fileName;
+        currentIndex = 0; // Reset the index when a new file is selected
+        saveConfigToFile();
+        readListFromFile(path.join(DATA_DIR, currentFile));
+        watchCurrentFile(); // Update the watcher to the new file
+        io.emit('fileChanged', { list: currentList, currentFile });
     });
 
     // Handle disconnect
