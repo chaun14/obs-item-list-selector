@@ -1,5 +1,7 @@
 # OBS Item list selector
 
+![img](./docs/screenshot.png?raw=true)
+
 This project is a Node.js application that allows you to dynamically manage and display lists of items in an OBS (Open Broadcaster Software) setup. It includes a web interface to select and navigate through different lists stored as text files in a specified directory.
 I'm personally using it to show the current scene of a dance performance, but it can be used for any other purpose where you need to display a list of items in OBS.
 
